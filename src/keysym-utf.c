@@ -847,36 +847,6 @@ const short int keysymtab_bounds[] = { /* accelerate binary search by restrictin
   /*   END  */  775
 };
 
-/* binary search with range check */
-static uint32_t
-bin_search(const struct codepair *table, size_t length, xkb_keysym_t keysym)
-{
-    int32_t first, mid;
-    int32_t last = length;
-
-    if (keysym < table[0].keysym  || keysym > table[length].keysym)
-        return 0;
-    mid = keysym >> 8;
-    first = keysymtab_bounds[mid];
-    last = keysymtab_bounds[mid+1] - 1;
-    if (last < first || keysym < table[first].keysym || keysym > table[last].keysym)
-      return 0;
-
-    /* binary search in table */
-    while (last >= first) {
-        mid = (first + last) / 2;
-        if (table[mid].keysym < keysym)
-            first = mid + 1;
-        else if (table[mid].keysym > keysym)
-            last = mid - 1;
-        else /* found it */
-            return table[mid].ucs;
-    }
-
-    /* no matching Unicode value found in table */
-    return 0;
-}
-
 XKB_EXPORT uint32_t
 xkb_keysym_to_utf32(xkb_keysym_t keysym)
 {
@@ -885,15 +855,12 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
         (keysym >= 0x00a0 && keysym <= 0x00ff))
         return keysym;
 
-    /* patch encoding botch */
-    if (keysym == XKB_KEY_KP_Space)
-        return XKB_KEY_space & 0x7f;
-
     /* special keysyms */
     if ((keysym >= XKB_KEY_BackSpace && keysym <= XKB_KEY_Clear) ||
         (keysym >= XKB_KEY_KP_Multiply && keysym <= XKB_KEY_KP_9) ||
         keysym == XKB_KEY_Return || keysym == XKB_KEY_Escape ||
         keysym == XKB_KEY_Delete || keysym == XKB_KEY_KP_Tab ||
+        keysym == XKB_KEY_KP_Space || /* patch encoding botch */
         keysym == XKB_KEY_KP_Enter || keysym == XKB_KEY_KP_Equal)
         return keysym & 0x7f;
 
@@ -902,7 +869,34 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
         return keysym & 0x00ffffff;
 
     /* search main table */
-    return bin_search(keysymtab, ARRAY_SIZE(keysymtab) - 1, keysym);
+
+    if (keysym < keysymtab[0].keysym || keysym > keysymtab[sizeof(keysymtab)/sizeof(struct codepair) - 1].keysym)
+      return 0;
+
+    int32_t mid = keysym >> 8;
+    int32_t first = keysymtab_bounds[mid];
+    int32_t last = keysymtab_bounds[mid+1] - 1;
+
+    /* binary search in table */
+    while (last >= first) {
+      if (keysym <= keysymtab[first].keysym)
+        return keysym == keysymtab[first].keysym ? keysymtab[first].ucs : 0;
+      if (keysym >= keysymtab[last].keysym)
+        return keysym == keysymtab[last].keysym ? keysymtab[last].ucs : 0;
+      mid = (first + last) >> 1;
+      if (keysymtab[mid].keysym < keysym) {
+        first = mid + 1;
+        last--;
+      }
+      else if (keysymtab[mid].keysym > keysym) {
+        last = mid - 1;
+        first++;
+      }
+      else /* found it */
+        return keysymtab[mid].ucs;
+    }
+    /* no matching Unicode value found in table */
+    return 0;
 }
 
 /*
@@ -949,18 +943,76 @@ xkb_keysym_to_utf8(xkb_keysym_t keysym, char *buffer, size_t size)
 #ifdef KEYSYM_UTF_DEBUG
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
-int main(int ac, char *av[])
+/* binary search with range check */
+inline static uint32_t
+bin_search(const struct codepair *table, size_t length, xkb_keysym_t keysym)
 {
-  uint16_t keysym, ks;
-  int32_t i, j, k;
-  char *end;
+  size_t first = 0,
+    last = length;
+
+  if (keysym < table[0].keysym  || keysym > table[length].keysym)
+    return 0;
+
+  /* binary search in table */
+  while (last >= first) {
+    size_t mid = (first + last) / 2;
+    if (table[mid].keysym < keysym)
+      first = mid + 1;
+    else if (table[mid].keysym > keysym)
+      last = mid - 1;
+    else /* found it */
+      return table[mid].ucs;
+  }
+
+  /* no matching Unicode value found in table */
+  return 0;
+}
+
+XKB_EXPORT uint32_t
+xkb_keysym_to_utf32_orig(xkb_keysym_t keysym)
+{
+    /* first check for Latin-1 characters (1:1 mapping) */
+    if ((keysym >= 0x0020 && keysym <= 0x007e) ||
+        (keysym >= 0x00a0 && keysym <= 0x00ff))
+        return keysym;
+
+    /* patch encoding botch */
+    if (keysym == XKB_KEY_KP_Space)
+        return XKB_KEY_space & 0x7f;
+
+    /* special keysyms */
+    if ((keysym >= XKB_KEY_BackSpace && keysym <= XKB_KEY_Clear) ||
+        (keysym >= XKB_KEY_KP_Multiply && keysym <= XKB_KEY_KP_9) ||
+        keysym == XKB_KEY_Return || keysym == XKB_KEY_Escape ||
+        keysym == XKB_KEY_Delete || keysym == XKB_KEY_KP_Tab ||
+        keysym == XKB_KEY_KP_Enter || keysym == XKB_KEY_KP_Equal)
+        return keysym & 0x7f;
+
+    /* also check for directly encoded 24-bit UCS characters */
+    if (keysym >= 0x01000100 && keysym <= 0x0110ffff)
+        return keysym & 0x00ffffff;
+
+    /* search main table */
+    return bin_search(keysymtab, ARRAY_SIZE(keysymtab) - 1, keysym);
+}
+
+void test_order()
+{
+  int32_t k;
 
   // Test order
   for (k = sizeof(keysymtab)/sizeof(struct codepair) - 2 ; k >= 0 ; k--) {
     if (keysymtab[k].keysym >= keysymtab[k+1].keysym)
       fprintf(stderr, "(%d): '%s'\n", k, keysymtab[k].keysym);
   }
+}
+
+void print_limits()
+{
+  uint16_t keysym, ks;
+  int32_t i, j, k;
 
   // Print limits
   fprintf(stderr, "const short int keysymtab_bounds[] = { /* accelerate binary search by restricting bounds */\n");
@@ -974,6 +1026,88 @@ int main(int ac, char *av[])
     }
   }
   fprintf(stderr, "\n  /*   END  */ %4d\n};\n", j);
+}
+
+void benchmarks()
+{
+  uint16_t keysym, ks;
+  int32_t i, j, k, utf;
+  char *end;
+  struct timespec t0, t1;
+  double e1, e2, e3, e4;
+
+  /* 1st case, no acceleration and only what is inside keysymtab (all values are valid)
+   */
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
+  for (k = 0 ; k < 10000 ; k++)
+    for (i = 0, j = sizeof(keysymtab)/sizeof(struct codepair) ; i < j ; i++) {
+      keysym = keysymtab[i].keysym;
+      utf = xkb_keysym_to_utf32_orig(keysym);
+    }
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t1);
+  fprintf(stderr, "* 1st case - no acceleration, only valid values: %le (secs)\n", e1 = difftime(t1.tv_sec, t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) * 1e-9);
+
+  /* 2nd case, with acceleration and only valid values
+   */
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
+  for (k = 0 ; k < 10000 ; k++)
+    for (i = 0, j = sizeof(keysymtab)/sizeof(struct codepair) ; i < j ; i++) {
+      keysym = keysymtab[i].keysym;
+      utf = xkb_keysym_to_utf32(keysym);
+    }
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t1);
+  fprintf(stderr, "* 2nd case - with acceleration, only valid values: %le (secs)\n", e2 = difftime(t1.tv_sec, t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) * 1e-9);
+
+  /* 3rd case, no acceleration and all values inside 0..0x20ac range
+   */
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
+  for (k = 0 ; k < 10000 ; k++)
+    for (i = 0, j = keysymtab[sizeof(keysymtab)/sizeof(struct codepair) -1].keysym ; i < j ; i++) {
+      utf = xkb_keysym_to_utf32_orig(i);
+    }
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t1);
+  fprintf(stderr, "* 3rd case - no acceleration, all values inside 0..0x201a range: %le (secs)\n", e3 = difftime(t1.tv_sec, t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) * 1e-9);
+
+  /* 4th case, with acceleration and all values inside 0..0x20ac range
+   */
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
+  for (k = 0 ; k < 10000 ; k++)
+    for (i = 0, j = keysymtab[sizeof(keysymtab)/sizeof(struct codepair) -1].keysym ; i < j ; i++) {
+      utf = xkb_keysym_to_utf32(i);
+    }
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t1);
+  fprintf(stderr, "* 4th case - with acceleration, all values inside 0..0x201a range: %le (secs)\n\n", e4 = difftime(t1.tv_sec, t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) * 1e-9);
+
+  fprintf(stderr, "Ellapsed time reduction (%%) on (1st - 2nd)/1st: %5.2lf %%\n", (e1 - e2)/e1 * 100);
+  fprintf(stderr, "Ellapsed time reduction (%%) on (3rd - 4th)/3rd: %5.2lf %%\n", (e3 - e4)/e3 * 100);
+}
+
+void check_regressions()
+{
+  uint16_t keysym;
+  int32_t i, j, utf1, utf2;
+
+  /* Check if values inside 0..0x2100 range give incongruent results
+   */
+  for (keysym = i = 0, j = 0x2100 ; keysym < j ; keysym++) {
+      utf1 = xkb_keysym_to_utf32_orig(keysym);
+      utf2 = xkb_keysym_to_utf32(keysym);
+      if (utf1 != utf2) {
+        i++;
+        fprintf(stderr, "Mismatch for keysym: 0x%05lx\n", keysym);
+      }
+  }
+  fprintf(stderr, "Number of mismatched cases on 0..0x2100 range: %d\n", i);
+}
+
+int main(int ac, char *av[])
+{
+  int32_t i, j, k, utf;
+  char *end;
+
+  // test_order();
+
+  // print_limits();
 
   for (i = 1 ; i < ac ; i++) {
     k = strtol(av[i], &end, 0);
@@ -982,7 +1116,14 @@ int main(int ac, char *av[])
       continue;
     }
     j = xkb_keysym_to_utf32(k);
-    fprintf(stderr, "str '%s': keysym (%10lx) -> ucs (%10lx).\n", av[i], k, j);
+    fprintf(stderr, "str '%s': keysym (%05lx) -> ucs (%05lx).\n", av[i], k, j);
   }
+  fprintf(stderr, "\n");
+
+  benchmarks();
+
+  check_regressions();
+
+  return 0;
 }
 #endif /* KEYSYM_UTF_DEBUG */
