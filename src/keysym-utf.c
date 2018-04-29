@@ -873,12 +873,18 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
     if (keysym < keysymtab[0].keysym || keysym > keysymtab[sizeof(keysymtab)/sizeof(struct codepair) - 1].keysym)
       return 0;
 
+    /* range boundaries restriction
+     * note that when the range is empty, last == first - 1
+     * i.e., the loop will be skipped entirely
+     */
     int32_t mid = keysym >> 8;
     int32_t first = keysymtab_bounds[mid];
     int32_t last = keysymtab_bounds[mid+1] - 1;
 
     /* binary search in table */
     while (last >= first) {
+      /* for sparse values inside ranges, we get extra chances to cut short
+       * the search by testing the boundaries and shrink them further */
       if (keysym <= keysymtab[first].keysym)
         return keysym == keysymtab[first].keysym ? keysymtab[first].ucs : 0;
       if (keysym >= keysymtab[last].keysym)
