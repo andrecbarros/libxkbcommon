@@ -57,37 +57,38 @@ utf32_to_utf8(uint32_t unichar, char *buffer)
   }
 }
 
-bool utf8_to_utf32(unsigned char *ss, size_t len, uint32_t *i)
+int utf8_to_utf32(unsigned char *ss, uint32_t *i)
 {
+  /* Positive returns -> number of valid used bytes on an encoded, '\0' terminated string
+   * Negative returns -> negative of it is the number of valid encoded chars, the next one is invalid
+   */
   uint32_t j;
   unsigned char *u;
 
   if (*ss >= 0x80) {  // UTF encoded and need more than 2 byte? (counting the '\0' ending)
-    register short int b;  // number of encoded bytes (not including the '\0')
+    register short int n, b;  // number of encoded bytes (not including the '\0')
 
     /* decoding - we know how the bits are distributed, i.e., except for the 1st byte in ss,
      * that all the remaining bytes must be 10xxxxxx, where each x can be 0 or 1
      */
-    b = 2 + (*ss >= 0xe0) + (*ss >= 0xf0) + (*ss >= 0xf8) + (*ss >= 0xfc);
-    if ((b + 1) != len)
-      return false;
+    n = b = 2 + (*ss >= 0xe0) + (*ss >= 0xf0) + (*ss >= 0xf8) + (*ss >= 0xfc);
     if ((j = (*ss << b) & 0xff) < 0x80)
       for (ss++, j >>= b-- ; b > 0 && (*ss & 0xc0) == 0x80 ; b--, j = (j<<6) + (*ss++ & 0x3f)) ;
     if (b || j > 0x010FFFF || (j >= 0xd800 && j <= 0xdfff)) /* drop also surrogates */
-      return false;
+      return b - n;
     if (i)
       *i = j;
-    return true;
+    return n + 1;
   }
   else
-    return len == 2; /* it means that 0 should be "\0" string */
+    return 2; /* it means that 0 should be "\0" string */
 }
 
 inline
 bool
 is_valid_utf8(const char *ss, size_t len)
 {
-  return utf8_to_utf32((unsigned char *)ss, len, NULL);
+  return utf8_to_utf32((unsigned char *)ss, NULL) == len;
 }
 
 #ifdef UTF8_DEBUG
