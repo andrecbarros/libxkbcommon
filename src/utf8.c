@@ -34,7 +34,7 @@
 int
 utf32_to_utf8(uint32_t unichar, char *buffer)
 {
-  if (unichar >= 0x80000000 || unichar >= 0xd800 && unichar <= 0xdfff) {
+  if (unichar >= 0x80000000 || (unichar >= 0xd800 && unichar <= 0xdfff)) {
     /* Surrogates? They are not allowed in strict utf8 encoding */
     *buffer = '\0';
     return 1;
