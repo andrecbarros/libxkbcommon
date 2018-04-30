@@ -865,8 +865,9 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
         return keysym & 0x7f;
 
     /* also check for directly encoded 24-bit UCS characters */
+    /* but exclude surrogotes (utf-16 pairs) */
     if (keysym >= 0x01000100 && keysym <= 0x0110ffff)
-        return keysym & 0x00ffffff;
+      return keysym >= 0x0100d800 && keysym <= 0x0100dfff ? 0 : keysym & 0x00ffffff;
 
     /* search main table */
 
@@ -1031,7 +1032,7 @@ void print_limits()
       fprintf(stderr, "  /* '%4x' */ %4d,%s", keysym, k, i++ % 5 == 4 ? "\n" : "");
     }
   }
-  fprintf(stderr, "\n  /*   END  */ %4d\n};\n", j);
+  fprintf(stderr, "\n  /*   END  */ %4d\n};\n\n", j);
 }
 
 void benchmarks()
@@ -1085,7 +1086,7 @@ void benchmarks()
   fprintf(stderr, "* 4th case - with acceleration, all values inside 0..0x201a range: %le (secs)\n\n", e4 = difftime(t1.tv_sec, t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) * 1e-9);
 
   fprintf(stderr, "Ellapsed time reduction (%%) on (1st - 2nd)/1st: %5.2lf %%\n", (e1 - e2)/e1 * 100);
-  fprintf(stderr, "Ellapsed time reduction (%%) on (3rd - 4th)/3rd: %5.2lf %%\n", (e3 - e4)/e3 * 100);
+  fprintf(stderr, "Ellapsed time reduction (%%) on (3rd - 4th)/3rd: %5.2lf %%\n\n", (e3 - e4)/e3 * 100);
 }
 
 void check_regressions()
@@ -1103,7 +1104,7 @@ void check_regressions()
         fprintf(stderr, "Mismatch for keysym: 0x%05lx\n", keysym);
       }
   }
-  fprintf(stderr, "Number of mismatched cases on 0..0x2100 range: %d\n", i);
+  fprintf(stderr, "Number of mismatched cases on 0..0x2100 range: %d\n\n", i);
 }
 
 int main(int ac, char *av[])
