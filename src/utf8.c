@@ -34,8 +34,7 @@
 int
 utf32_to_utf8(uint32_t unichar, char *buffer)
 {
-  if (unichar >= 0x80000000 || (unichar >= 0xd800 && unichar <= 0xdfff)) {
-    /* Surrogates? They are not allowed in strict utf8 encoding */
+  if (UTF32_INVALID(unichar)) {
     *buffer = '\0';
     return 1;
   }
@@ -59,8 +58,9 @@ utf32_to_utf8(uint32_t unichar, char *buffer)
 
 int utf8_to_utf32(unsigned char *ss, uint32_t *i)
 {
-  /* Positive returns -> number of valid used bytes on an encoded, '\0' terminated string
+  /* Positive returns -> number of valid used bytes on an encoded, '\0' terminated, string
    * Negative returns -> negative of it is the number of valid encoded chars, the next one is invalid
+   * (this facilitate string iteration)
    */
   uint32_t j;
   unsigned char *u;
@@ -69,12 +69,12 @@ int utf8_to_utf32(unsigned char *ss, uint32_t *i)
     register short int n, b;  // number of encoded bytes (not including the '\0')
 
     /* decoding - we know how the bits are distributed, i.e., except for the 1st byte in ss,
-     * that all the remaining bytes must be 10xxxxxx, where each x can be 0 or 1
+     * all the remaining bytes must be 10xxxxxx, where each x can be 0 or 1
      */
     n = b = 2 + (*ss >= 0xe0) + (*ss >= 0xf0) + (*ss >= 0xf8) + (*ss >= 0xfc);
     if ((j = (*ss << b) & 0xff) < 0x80)
       for (ss++, j >>= b-- ; b > 0 && (*ss & 0xc0) == 0x80 ; b--, j = (j<<6) + (*ss++ & 0x3f)) ;
-    if (b || j > 0x010FFFF || (j >= 0xd800 && j <= 0xdfff)) /* drop also surrogates */
+    if (b || UTF_INVALID(j))
       return b - n;
     if (i)
       *i = j;
@@ -223,6 +223,8 @@ void benchmarks()
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
   for (m = 0 ; m < 200 ; m++)
     for (i = 0, j = 0x010FFFF ; i <= j ; i++) {
+      if (UTF32_INVALID(i))
+        continue;
       k = utf32_to_utf8_orig(i, utf1);
     }
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t1);
@@ -233,6 +235,8 @@ void benchmarks()
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
   for (m = 0 ; m < 200 ; m++)
     for (i = 0, j = 0x010FFFF ; i <= j ; i++) {
+      if (UTF32_INVALID(i))
+        continue;
       k = utf32_to_utf8(i, utf2);
     }
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t1);
@@ -245,6 +249,8 @@ void benchmarks()
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
   for (r1 = n1 = 0, m = 0 ; m < 100 ; m++)
     for (i = 0, j = 0x010FFFF ; i <= j ; i++) {
+      if (UTF32_INVALID(i))
+        continue;
       k = utf32_to_utf8_orig(i, utf1);
       if (! is_valid_utf8_orig(utf1, k)) {
         n1++;
@@ -262,6 +268,8 @@ void benchmarks()
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t0);
   for (r2 = n2 = 0, m = 0 ; m < 100 ; m++)
     for (i = 0, j = 0x010FFFF ; i <= j ; i++) {
+      if (UTF32_INVALID(i))
+        continue;
       k = utf32_to_utf8(i, utf1);
       if (! is_valid_utf8(utf1, k)) {
         n2++;
@@ -285,7 +293,7 @@ void check_regressions()
   /* Literally, check all valid unicode code points
    */
   for (errs = 0, i = 0, j = 0x010FFFF ; i <= j ; i++) {
-    if (i >= 0xd800 && i <= 0xdfff)
+    if (UTF32_INVALID(i))
       continue;
     m = utf32_to_utf8_orig(i, utf1);
     n = utf32_to_utf8(i, utf2);

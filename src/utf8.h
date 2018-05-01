@@ -27,6 +27,32 @@
 #ifndef XKBCOMMON_UTF8_H
 #define XKBCOMMON_UTF8_H
 
+/* It is recommended that XKBCOMMON_UNICODE_COMPAT be defined as 0 so that new code
+ * is future proof about valid Unicode code points; on newer versions of libxkbcommon
+ * it may be flipped to 0 as default
+ */
+
+#ifndef XKBCOMMON_UNICODE_COMPAT
+#define XKBCOMMON_UNICODE_COMPAT 1
+#endif
+
+#if XKBCOMMON_UNICODE_COMPAT == 1
+#define UTF32_STRICT 0
+#else
+#define UTF32_STRICT 1
+#endif
+
+#define UTF_INVALID(ch)   ((ch) >= 0x00110000 || ((ch) >= 0xd800 && (ch) <= 0xdfff))
+#if UTF32_STRICT
+#define UTF32_FRONTIER    0x00110000
+/* surrogates are not allowed in strict utf8 or utf32 encoding */
+#define UTF32_INVALID(ch) UTF_INVALID(ch)
+#else
+#define UTF32_FRONTIER    0x80000000
+#define UTF32_INVALID(ch) ((ch) >= UTF32_FRONTIER)
+#endif
+#define UTF32_MAX         (UTF32_FRONTIER - 1)
+
 int
 utf32_to_utf8(uint32_t unichar, char *buffer);
 

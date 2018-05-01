@@ -866,9 +866,13 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
 
     /* also check for directly encoded 24-bit UCS characters */
     /* but exclude surrogotes (utf-16 pairs) */
+#ifdef UTF32_STRICT
     if (keysym >= 0x01000100 && keysym <= 0x0110ffff)
       return keysym >= 0x0100d800 && keysym <= 0x0100dfff ? 0 : keysym & 0x00ffffff;
-
+#else
+    if ((keysym & 0x0f000000) == 0x01000000)
+      return keysym & 0x00ffffff;
+#endif
     /* search main table */
 
     if (keysym < keysymtab[0].keysym || keysym > keysymtab[sizeof(keysymtab)/sizeof(struct codepair) - 1].keysym)
