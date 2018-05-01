@@ -56,7 +56,8 @@ utf32_to_utf8(uint32_t unichar, char *buffer)
   }
 }
 
-int utf8_to_utf32(unsigned char *ss, uint32_t *i)
+int
+utf8_to_utf32(unsigned char *ss, uint32_t *unichar)
 {
   /* Positive returns -> number of valid used bytes on an encoded, '\0' terminated, string
    * Negative returns -> negative of it is the number of valid encoded chars, the next one is invalid
@@ -76,8 +77,8 @@ int utf8_to_utf32(unsigned char *ss, uint32_t *i)
       for (ss++, j >>= b-- ; b > 0 && (*ss & 0xc0) == 0x80 ; b--, j = (j<<6) + (*ss++ & 0x3f)) ;
     if (b || UTF_INVALID(j))
       return b - n;
-    if (i)
-      *i = j;
+    if (unichar)
+      *unichar = j;
     return n + 1;
   }
   else

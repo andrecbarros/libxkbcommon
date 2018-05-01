@@ -21,7 +21,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Author: Rob Bradford <rob@linux.intel.com>
+ * Authors: Rob Bradford <rob@linux.intel.com>
+ *          Andre Barros <andre.cbarros@yahoo.com>
  */
 
 #ifndef XKBCOMMON_UTF8_H
@@ -58,5 +59,8 @@ utf32_to_utf8(uint32_t unichar, char *buffer);
 
 bool
 is_valid_utf8(const char *ss, size_t len);
+
+int
+utf8_to_utf32(unsigned char *ss, uint32_t *unichar);
 
 #endif

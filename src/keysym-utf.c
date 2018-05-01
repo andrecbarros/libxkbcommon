@@ -870,7 +870,7 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
     if (keysym >= 0x01000100 && keysym <= 0x0110ffff)
       return keysym >= 0x0100d800 && keysym <= 0x0100dfff ? 0 : keysym & 0x00ffffff;
 #else
-    if ((keysym & 0x0f000000) == 0x01000000)
+    if ((keysym & 0xff000000) == 0x01000000)
       return keysym & 0x00ffffff;
 #endif
     /* search main table */
@@ -1002,7 +1002,7 @@ xkb_keysym_to_utf32_orig(xkb_keysym_t keysym)
         return keysym & 0x7f;
 
     /* also check for directly encoded 24-bit UCS characters */
-    if (keysym >= 0x01000100 && keysym <= 0x0110ffff)
+    if ((keysym & 0xff000000) == 0x01000000)
         return keysym & 0x00ffffff;
 
     /* search main table */
