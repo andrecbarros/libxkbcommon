@@ -63,7 +63,7 @@ enum xmlp_entity_tags_e { /* XML+ entities set, i.e. XML with additions - list o
   COMPDIACS =  1<<22, /* composed letter with diacritics */
   COMPLIGAT =  1<<23, /* composed letter with letter (ligature) */
   COMBGRAPH =  1<<24, /* combined grapheme (grapheme cluster) */
-  BIGCODEPT =  1<<25, /* graphme with code point > 0xFFFF */
+  BIGCODEPT =  1<<25, /* grapheme with code point > 0xFFFF */
 
   XMLPLUS =    1<<30, /* Not in default xml standard */
 };
