@@ -77,6 +77,11 @@ init_consts () {
   print_code_points=
   if [ "${print_code_points,}" = y ]; then tt=ucsm_t ; else tt=int16_t ; fi
 
+  # enlarge a bit the generated xmlp_entities_map table to reduce a lot of
+  # time in processing
+  #
+  print_utf_encoded=y
+
   rval= # for functions that must return more than just an integer
 }
 
@@ -381,6 +386,8 @@ print_entities () {
   #
   # Print all entities
   #
+  local aux i j jj dh h0 h1
+
   echo -e "/*\n * Entities${1:+ filtered}\n */"
 
   # just in case we may want to reduce the table size; not in use right now
@@ -413,15 +420,25 @@ print_entities () {
   t1=${t1// , /, }
   t1=${t1%,*}
 
+  aux=
   i=0
   for ch in $t1; do
     ch=${ch//#/ }
     rval=${ch#*,}
     rval=${rval%:*}
     expand_grapheme "$rval" 0 1
+    if [ "${print_utf_encoded,}" = y ]; then
+      aux=$( for aux in ${rval//[\{\},]/ }; do aux=${aux##*=}; echo -en "${aux/0x/\\u}"; done )
+      if [ "$aux" = '"' ]; then
+          aux='\\"'
+      elif [ "$aux" = '\' ]; then
+          aux='\\\\'
+      fi
+      aux=$( echo -en " \"$aux\",")
+    fi
     te=
     [ $((i++ % 1)) = 0 ] && te=$NL
-    printf '  {%s, %s,%s%s' "${ch%%,*}" "$rval" "${ch#*:}" "$te"
+    printf '  {%s, %s,%s%s%s' "${ch%%,*}" "$rval" "$aux" "${ch#*:}" "$te"
   done
   if [ ${#te} = 1 ]; then te= ; else te=$NL ; fi
   printf '%s};\n\n' "$te"
@@ -521,6 +538,8 @@ printf '%s\n%s\n%s\n *\n%s\n */\n\n' \
        ' * Author: Andre Barros (andre.cbarros@yahoo.com)'
 
 printf '#ifndef XKB_XMLP_PRIV_H\n#define XKB_XMLP_PRIV_H\n\n'
+
+printf '#include "xmlp.h"\n\n'
 
 if [ "${print_code_points,}" = y ]; then 
   printf '/* Using code points on auxiliary tables\n */\n'
