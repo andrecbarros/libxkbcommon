@@ -428,7 +428,7 @@ print_entities () {
     rval=${rval%:*}
     expand_grapheme "$rval" 0 1
     if [ "${print_utf_encoded,}" = y ]; then
-      aux=$( for aux in ${rval//[\{\},]/ }; do aux=${aux##*=}; echo -en "${aux/0x/\\u}"; done )
+      aux=$( for aux in ${rval//[\{\},]/ }; do aux=${aux##*=}; echo -en "${aux/0x/\\U}"; done )
       if [ "$aux" = '"' ]; then
           aux='\\"'
       elif [ "$aux" = '\' ]; then
